@@ -1,0 +1,12 @@
+*&---------------------------------------------------------------------*
+*& Include          ZMM_MATERIAL_MIGRATION_SEL
+*&---------------------------------------------------------------------*
+"Text-001: Fixed Assets Report as Per IGAAP
+SELECTION-SCREEN BEGIN OF BLOCK a1 WITH FRAME TITLE TEXT-001.
+  PARAMETERS: p_file TYPE rlgrap-filename.
+SELECTION-SCREEN END OF BLOCK a1.
+
+"Text-002:- Test run
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-002.
+  PARAMETERS cb_test AS CHECKBOX.
+SELECTION-SCREEN END OF BLOCK b1.

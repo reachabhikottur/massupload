@@ -1,0 +1,202 @@
+class ZCL_XX_MIGRATION definition
+  public
+  create public .
+
+public section.
+
+  methods READ_EXCEL
+    importing
+      !IV_STRUCTURE_NAME type TABNAME
+      !IV_FILENAME type LOCALFILE
+    exporting
+      !CT_TABLE type STANDARD TABLE .
+  methods INITIALIZE .
+  methods CONVERT_INPUT_TO_OUTPUT
+    changing
+      !CS_STR type ANY optional .
+  methods MAP_FIELDS_TO_BAPI .
+  methods CALL_BAPI .
+  methods SHOW_ALV .
+  methods F4_FILENAME
+    exporting
+      !RV_FILENAME type LOCALFILE .
+protected section.
+
+  methods HANDLE_BAPI_MESSAGES .
+  methods FILL_BAPIX_STR
+    importing
+      !IS_STR type ANY
+    exporting
+      !ES_STR type ANY .
+  methods FILL_BAPIX_TABLE
+    importing
+      !IT_TABLE type STANDARD TABLE
+    exporting
+      !ET_TABLE type STANDARD TABLE .
+private section.
+
+  methods PRE_VALIDATE_FILE .
+ENDCLASS.
+
+
+
+CLASS ZCL_XX_MIGRATION IMPLEMENTATION.
+
+
+  method CALL_BAPI.
+  endmethod.
+
+
+  METHOD convert_input_to_output.
+
+    TYPES: BEGIN OF zt_fields,
+             field TYPE fieldname,
+           END OF zt_fields.
+
+    DATA: lt_matnr_fields TYPE TABLE OF zt_fields,
+          lt_alpha_fields TYPE TABLE OF zt_fields.
+
+
+    lt_matnr_fields = VALUE #( ( field = 'MATNR' ) ( field = 'MATNR' ) ).
+
+    lt_alpha_fields = VALUE #( ( field = 'KUNNR' ) ( field = 'LIFNR' ) ).
+
+
+    LOOP AT lt_matnr_fields INTO DATA(ls_matnr_fields).
+      ASSIGN COMPONENT ls_matnr_fields-field OF STRUCTURE cs_str TO FIELD-SYMBOL(<lv_matnr>).
+      IF sy-subrc EQ 0 AND <lv_matnr> IS ASSIGNED.
+        CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
+          EXPORTING
+            input  = <lv_matnr>
+          IMPORTING
+            output = <lv_matnr>.
+        IF sy-subrc <> 0.
+* Implement suitable error handling here
+        ENDIF.
+
+      ENDIF.
+    ENDLOOP.
+
+
+    LOOP AT lt_alpha_fields INTO DATA(ls_alpha_fields).
+      ASSIGN COMPONENT ls_alpha_fields-field OF STRUCTURE cs_str TO FIELD-SYMBOL(<lv_alpha>).
+      IF sy-subrc EQ 0 AND <lv_matnr> IS ASSIGNED.
+        CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+          EXPORTING
+            input  = <lv_alpha>
+          IMPORTING
+            output = <lv_alpha>.
+        IF sy-subrc <> 0.
+* Implement suitable error handling here
+        ENDIF.
+
+      ENDIF.
+    ENDLOOP.
+
+
+  ENDMETHOD.
+
+
+  METHOD f4_filename.
+
+    CALL FUNCTION 'F4_FILENAME'
+      EXPORTING
+        program_name  = sy-cprog
+        dynpro_number = sy-dynnr
+        field_name    = ' '
+      IMPORTING
+        file_name     = rv_filename.
+  ENDMETHOD.
+
+
+  METHOD fill_bapix_str.
+    DATA(lo_typedescr_field) = CAST cl_abap_structdescr(
+      cl_abap_typedescr=>describe_by_data( is_str ) ).
+
+
+    LOOP AT lo_typedescr_field->components ASSIGNING FIELD-SYMBOL(<ls_comp>).
+
+      ASSIGN COMPONENT <ls_comp>-name OF STRUCTURE "#EC CI_FLDEXT_OK[2215424] ,[S4], CBS Charles Fang, 2023-05-30
+      is_str TO FIELD-SYMBOL(<lv_field>).
+
+      IF <lv_field> IS ASSIGNED AND ( <lv_field> IS NOT INITIAL AND
+        <lv_field> NE '0' ).
+
+        ASSIGN COMPONENT <ls_comp>-name OF STRUCTURE "#EC CI_FLDEXT_OK[2215424] ,[S4], CBS Charles Fang, 2023-05-30
+        es_str TO FIELD-SYMBOL(<lv_fieldx>).
+
+        IF <lv_fieldx> IS ASSIGNED.
+          IF   <ls_comp>-name EQ 'PLANT'      OR <ls_comp>-name EQ 'STGE_LOC'
+            OR <ls_comp>-name EQ 'VAL_AREA'   OR <ls_comp>-name EQ 'VAL_TYPE'
+            OR <ls_comp>-name EQ 'WHSE_NO'    OR <ls_comp>-name EQ 'SALES_ORG'
+            OR <ls_comp>-name EQ 'DISTR_CHAN' OR <ls_comp>-name EQ 'STGE_TYPE'
+            OR <ls_comp>-name EQ 'MATERIAL'   OR <ls_comp>-name EQ 'LRMEI'
+            OR <ls_comp>-name EQ 'ALT_UNIT'.
+
+            <lv_fieldx> = <lv_field>.
+
+          ELSE.
+            <lv_fieldx> = abap_true.
+          ENDIF.
+        ENDIF.
+
+      ENDIF.
+
+    ENDLOOP.
+
+
+
+
+  ENDMETHOD.
+
+
+  method FILL_BAPIX_TABLE.
+  endmethod.
+
+
+  method HANDLE_BAPI_MESSAGES.
+  endmethod.
+
+
+  method INITIALIZE.
+  endmethod.
+
+
+  method MAP_FIELDS_TO_BAPI.
+  endmethod.
+
+
+  method PRE_VALIDATE_FILE.
+  endmethod.
+
+
+  METHOD read_excel.
+
+    DATA: lo_dyn_tab             TYPE REF TO data.
+
+    FIELD-SYMBOLS : <lt_dyn_tab> TYPE STANDARD TABLE.
+
+    CREATE DATA lo_dyn_tab TYPE TABLE OF (iv_structure_name).
+    ASSIGN lo_dyn_tab->* TO <lt_dyn_tab>.
+
+    CALL FUNCTION 'Y_EXCEL_TO_ITAB'
+      EXPORTING
+        iv_filename         = iv_filename
+        iv_structure        = iv_structure_name
+        iv_mandt_avl        = abap_false
+        iv_hdr_avl          = abap_true
+      CHANGING
+        ct_return_table     = <lt_dyn_tab>
+      EXCEPTIONS
+        structure_not_found = 1
+        field_not_found     = 2
+        OTHERS              = 3.
+
+    ct_table = <lt_dyn_tab>.
+
+  ENDMETHOD.
+
+
+  method SHOW_ALV.
+  endmethod.
+ENDCLASS.

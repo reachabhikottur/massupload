@@ -1,0 +1,58 @@
+*&---------------------------------------------------------------------*
+*& Include          ZMM_MATERIAL_MIGRATION_CLS
+*&---------------------------------------------------------------------*
+CLASS lcl_MATERIAL_MIGRATION_CLS DEFINITION INHERITING FROM zcl_xx_migration.
+
+  PUBLIC SECTION.
+
+   INCLUDE ZMM_MATERIAL_MIGRATION_DAT.
+
+  METHODS:
+
+  execute,
+
+  convert_input_to_output REDEFINITION,
+
+  call_bapi REDEFINITION.
+ENDCLASS.
+
+CLASS lcl_MATERIAL_MIGRATION_CLS IMPLEMENTATION.
+  METHOD execute.
+
+    read_excel(
+    EXPORTING
+      iv_structure_name = 'MAKT'                 " Table Name
+      iv_filename       = p_file                  " Local file for upload/download
+    IMPORTING
+      ct_table          = gt_input
+  ).
+
+    IF gt_input IS NOT INITIAL.
+
+      me->call_bapi( ).
+
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD call_bapi.
+    LOOP AT gt_final INTO DATA(ls_final).
+
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD convert_input_to_output.
+    LOOP AT gt_input INTO DATA(ls_input).
+
+      "For common conv.
+      APPEND INITIAL LINE TO gt_final ASSIGNING FIELD-SYMBOL(<ls_final>).
+      <ls_final> = CORRESPONDING #( ls_input ).
+
+      super->convert_input_to_output( CHANGING cs_str = <ls_final> ).
+
+      "Other conversions.
+    ENDLOOP.
+  ENDMETHOD.
+
+
+ENDCLASS.

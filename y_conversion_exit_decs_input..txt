@@ -1,0 +1,66 @@
+FUNCTION y_conversion_exit_decs_input.
+*"----------------------------------------------------------------------
+*"*"Local Interface:
+*"  IMPORTING
+*"     REFERENCE(INPUT) TYPE  ANY
+*"  EXPORTING
+*"     REFERENCE(OUTPUT) TYPE  NUMERIC
+*"  RAISING
+*"      CX_SY_CONVERSION_ERROR
+*"----------------------------------------------------------------------
+  STATICS: ss_usr01 TYPE usr01.
+  DATA: lp_data     TYPE REF TO data,
+        l_thousands TYPE c LENGTH 1,
+        l_decimal   TYPE c LENGTH 1,
+        l_translate TYPE c LENGTH 2.
+  DATA: lt_results TYPE match_result_tab,
+        ls_result  TYPE match_result,
+        l_match    TYPE string VALUE `^\s*-?\s*(?:\d{1,3}(?:(T?)\d{3})?(?:\1\d{3})*(D\d*)?|D\d+)\s*$`.
+  DATA: l_int TYPE string,
+        l_dec TYPE string.
+  FIELD-SYMBOLS: <l_input> TYPE any.
+  CREATE DATA lp_data LIKE input.
+  ASSIGN lp_data->* TO <l_input>.
+  <l_input> = input.
+* Get separator from user record
+  IF ss_usr01 IS INITIAL.
+    SELECT SINGLE * FROM usr01 INTO ss_usr01 WHERE bname EQ sy-uname.
+  ENDIF.
+  CASE ss_usr01-dcpfm.
+    WHEN space.  " 1.234.567,89
+      l_thousands = '.'.
+      l_decimal   = ','.
+    WHEN 'X'.    " 1,234,567.89
+      l_thousands = ','.
+      l_decimal   = '.'.
+    WHEN 'Y'.    " 1 234 567,89
+      l_thousands = space.
+      l_decimal   = ','.
+  ENDCASE.
+* Modify regex to handle the user's selected notation
+  REPLACE ALL OCCURRENCES OF 'T' IN l_match WITH l_thousands.
+  IF l_decimal EQ '.'.
+    REPLACE ALL OCCURRENCES OF 'D' IN l_match WITH '\.'.
+  ELSE.
+    REPLACE ALL OCCURRENCES OF 'D' IN l_match WITH l_decimal.
+  ENDIF.
+* Check the number is valid
+*  FIND REGEX l_match IN <l_input>.
+*  IF sy-subrc IS NOT INITIAL.
+*    RAISE EXCEPTION TYPE cx_sy_conversion_no_number.
+*  ENDIF.
+* Translate thousand separator into "space"
+  CONCATENATE l_thousands space INTO l_translate.
+  TRANSLATE <l_input> USING l_translate.
+* Translate decimal into .
+  CONCATENATE l_decimal '.' INTO l_translate.
+  TRANSLATE <l_input> USING l_translate.
+* Remove spaces
+  CONDENSE <l_input> NO-GAPS.
+  output = <l_input>.
+
+
+
+
+
+ENDFUNCTION.

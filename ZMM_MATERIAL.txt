@@ -1,0 +1,25 @@
+*&---------------------------------------------------------------------*
+*& Report ZMM_MATERIAL_MIGRATION
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zmm_material_migration.
+
+INCLUDE zmm_material_migration_sel.
+
+INCLUDE zmm_material_migration_cls.
+
+INITIALIZATION.
+  DATA(go_mat_mig) =  NEW lcl_material_migration_cls( ).
+
+START-OF-SELECTION.
+
+  go_mat_mig->execute( ).
+
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file.
+
+  go_mat_mig->f4_filename(
+    IMPORTING
+      rv_filename = p_file                 " Local file for upload/download
+  ).
