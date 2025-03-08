@@ -1,0 +1,531 @@
+class ZCL_XX_MIGRATION definition
+  public
+  create public .
+
+public section.
+
+  data GO_ALV type ref to CL_SALV_TABLE .
+  data GR_ALV type ref to DATA .
+  data GV_TEST_RUN type BOOLEAN .
+  data GV_FAILED type INT2 .
+
+  methods READ_EXCEL
+    importing
+      !IV_STRUCTURE_NAME type TABNAME
+      !IV_FILENAME type LOCALFILE
+    exporting
+      !CT_TABLE type STANDARD TABLE .
+  methods INITIALIZE .
+  methods CONVERT_INPUT_TO_OUTPUT
+    changing
+      !CS_STR type ANY optional .
+  methods MAP_FIELDS_TO_BAPI .
+  methods CALL_BAPI .
+  methods SHOW_ALV
+    changing
+      !CT_TABLE type STANDARD TABLE .
+  methods F4_FILENAME
+    exporting
+      !RV_FILENAME type LOCALFILE .
+  methods READ_EXCEL_NEW
+    importing
+      !IV_STRUCTURE_NAME type TABNAME
+      !IV_FILENAME type LOCALFILE
+    exporting
+      !CT_TABLE type STANDARD TABLE .
+protected section.
+
+  methods HANDLE_BAPI_MESSAGES
+    importing
+      !IS_RETURN type BAPIRET2 optional
+      !IT_RETURN type BAPIRETTAB optional
+      !IS_ALV type ANY optional .
+  methods FILL_BAPIX_STR
+    importing
+      !IS_STR type ANY
+    exporting
+      !ES_STR_X type ANY .
+  methods FILL_BAPIX_TABLE
+    importing
+      !IT_TABLE type STANDARD TABLE
+    exporting
+      !ET_TABLE type STANDARD TABLE .
+  methods AUTOMAP_BAPI_FIELDS
+    importing
+      !IS_STR type ANY
+      !IS_STRUCTURE_NAME type STRUKNAME
+    exporting
+      !ES_BAPI_STR type ANY .
+private section.
+
+  methods _SET_ALV_HEADER
+    importing
+      !IV_LINES type SYST_TABIX .
+  methods PRE_VALIDATE_FILE .
+ENDCLASS.
+
+
+
+CLASS ZCL_XX_MIGRATION IMPLEMENTATION.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_XX_MIGRATION->CALL_BAPI
+* +-------------------------------------------------------------------------------------------------+
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  method CALL_BAPI.
+  endmethod.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_XX_MIGRATION->CONVERT_INPUT_TO_OUTPUT
+* +-------------------------------------------------------------------------------------------------+
+* | [<-->] CS_STR                         TYPE        ANY(optional)
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD convert_input_to_output.
+
+    TYPES: BEGIN OF zt_fields,
+             field TYPE fieldname,
+           END OF zt_fields.
+
+    DATA: lt_matnr_fields TYPE TABLE OF zt_fields,
+          lt_alpha_fields TYPE TABLE OF zt_fields.
+
+
+    lt_matnr_fields = VALUE #( ( field = 'MATNR' ) ( field = 'MATNR' ) ).
+
+    lt_alpha_fields = VALUE #( ( field = 'KUNNR' ) ( field = 'LIFNR' ) ).
+
+
+    LOOP AT lt_matnr_fields INTO DATA(ls_matnr_fields).
+      ASSIGN COMPONENT ls_matnr_fields-field OF STRUCTURE cs_str TO FIELD-SYMBOL(<lv_matnr>).
+      IF sy-subrc EQ 0 AND <lv_matnr> IS ASSIGNED.
+        CALL FUNCTION 'CONVERSION_EXIT_MATN1_INPUT'
+          EXPORTING
+            input  = <lv_matnr>
+          IMPORTING
+            output = <lv_matnr>.
+        IF sy-subrc <> 0.
+* Implement suitable error handling here
+        ENDIF.
+
+      ENDIF.
+    ENDLOOP.
+
+
+    LOOP AT lt_alpha_fields INTO DATA(ls_alpha_fields).
+      ASSIGN COMPONENT ls_alpha_fields-field OF STRUCTURE cs_str TO FIELD-SYMBOL(<lv_alpha>).
+      IF sy-subrc EQ 0 AND <lv_matnr> IS ASSIGNED.
+        CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+          EXPORTING
+            input  = <lv_alpha>
+          IMPORTING
+            output = <lv_alpha>.
+        IF sy-subrc <> 0.
+* Implement suitable error handling here
+        ENDIF.
+
+      ENDIF.
+    ENDLOOP.
+
+
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_XX_MIGRATION->F4_FILENAME
+* +-------------------------------------------------------------------------------------------------+
+* | [<---] RV_FILENAME                    TYPE        LOCALFILE
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD f4_filename.
+
+    CALL FUNCTION 'F4_FILENAME'
+      EXPORTING
+        program_name  = sy-cprog
+        dynpro_number = sy-dynnr
+        field_name    = ' '
+      IMPORTING
+        file_name     = rv_filename.
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Protected Method ZCL_XX_MIGRATION->FILL_BAPIX_STR
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IS_STR                         TYPE        ANY
+* | [<---] ES_STR_X                       TYPE        ANY
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD fill_bapix_str.
+    DATA(lo_typedescr_field) = CAST cl_abap_structdescr(
+      cl_abap_typedescr=>describe_by_data( is_str ) ).
+
+
+    LOOP AT lo_typedescr_field->components ASSIGNING FIELD-SYMBOL(<ls_comp>).
+
+      ASSIGN COMPONENT <ls_comp>-name OF STRUCTURE "#EC CI_FLDEXT_OK[2215424] ,[S4], CBS Charles Fang, 2023-05-30
+      is_str TO FIELD-SYMBOL(<lv_field>).
+
+      IF <lv_field> IS ASSIGNED AND ( <lv_field> IS NOT INITIAL AND
+        <lv_field> NE '0' ).
+
+        ASSIGN COMPONENT <ls_comp>-name OF STRUCTURE "#EC CI_FLDEXT_OK[2215424] ,[S4], CBS Charles Fang, 2023-05-30
+        es_str_x TO FIELD-SYMBOL(<lv_fieldx>).
+
+        IF <lv_fieldx> IS ASSIGNED.
+          IF   <ls_comp>-name EQ 'PLANT'      OR <ls_comp>-name EQ 'STGE_LOC'
+            OR <ls_comp>-name EQ 'VAL_AREA'   OR <ls_comp>-name EQ 'VAL_TYPE'
+            OR <ls_comp>-name EQ 'WHSE_NO'    OR <ls_comp>-name EQ 'SALES_ORG'
+            OR <ls_comp>-name EQ 'DISTR_CHAN' OR <ls_comp>-name EQ 'STGE_TYPE'
+            OR <ls_comp>-name EQ 'MATERIAL'   OR <ls_comp>-name EQ 'LRMEI'
+            OR <ls_comp>-name EQ 'ALT_UNIT'.
+
+            <lv_fieldx> = <lv_field>.
+
+          ELSE.
+            <lv_fieldx> = abap_true.
+          ENDIF.
+        ENDIF.
+
+      ENDIF.
+
+    ENDLOOP.
+
+
+
+
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Protected Method ZCL_XX_MIGRATION->FILL_BAPIX_TABLE
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IT_TABLE                       TYPE        STANDARD TABLE
+* | [<---] ET_TABLE                       TYPE        STANDARD TABLE
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  method FILL_BAPIX_TABLE.
+  endmethod.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Protected Method ZCL_XX_MIGRATION->HANDLE_BAPI_MESSAGES
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IS_RETURN                      TYPE        BAPIRET2(optional)
+* | [--->] IT_RETURN                      TYPE        BAPIRETTAB(optional)
+* | [--->] IS_ALV                         TYPE        ANY(optional)
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD handle_bapi_messages.
+    ASSIGN COMPONENT 'STATUS' OF STRUCTURE is_alv TO FIELD-SYMBOL(<lv_alv_status>).
+
+    IF is_return IS SUPPLIED.
+
+
+    IF <lv_alv_status> IS ASSIGNED.
+
+      IF is_return-type EQ 'E' OR  is_return-type EQ 'A'.
+        <lv_alv_status> = icon_red_light.
+        ADD 1 TO gv_failed.
+      ELSE.
+        <lv_alv_status> = icon_green_light.
+      ENDIF.
+
+
+      ASSIGN COMPONENT 'MESSAGE' OF STRUCTURE is_alv TO FIELD-SYMBOL(<lv_alv_message>).
+      IF <lv_alv_message> IS ASSIGNED.
+        <lv_alv_message> = is_return-message.
+      ENDIF.
+
+
+    ENDIF.
+    elseif it_return IS SUPPLIED.
+
+    ENDIF.
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_XX_MIGRATION->INITIALIZE
+* +-------------------------------------------------------------------------------------------------+
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  method INITIALIZE.
+  endmethod.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_XX_MIGRATION->MAP_FIELDS_TO_BAPI
+* +-------------------------------------------------------------------------------------------------+
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  method MAP_FIELDS_TO_BAPI.
+  endmethod.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Private Method ZCL_XX_MIGRATION->PRE_VALIDATE_FILE
+* +-------------------------------------------------------------------------------------------------+
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  method PRE_VALIDATE_FILE.
+  endmethod.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_XX_MIGRATION->READ_EXCEL
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_STRUCTURE_NAME              TYPE        TABNAME
+* | [--->] IV_FILENAME                    TYPE        LOCALFILE
+* | [<---] CT_TABLE                       TYPE        STANDARD TABLE
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD read_excel.
+
+    DATA: lo_dyn_tab             TYPE REF TO data.
+
+    FIELD-SYMBOLS : <lt_dyn_tab> TYPE STANDARD TABLE.
+
+    CREATE DATA lo_dyn_tab TYPE TABLE OF (iv_structure_name).
+    ASSIGN lo_dyn_tab->* TO <lt_dyn_tab>.
+
+    CALL FUNCTION 'Y_EXCEL_TO_ITAB'
+      EXPORTING
+        iv_filename         = iv_filename
+        iv_structure        = iv_structure_name
+        iv_mandt_avl        = abap_false
+        iv_hdr_avl          = abap_true
+      CHANGING
+        ct_return_table     = <lt_dyn_tab>
+      EXCEPTIONS
+        structure_not_found = 1
+        field_not_found     = 2
+        OTHERS              = 3.
+
+    ct_table = <lt_dyn_tab>.
+
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_XX_MIGRATION->SHOW_ALV
+* +-------------------------------------------------------------------------------------------------+
+* | [<-->] CT_TABLE                       TYPE        STANDARD TABLE
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD show_alv.
+    CONSTANTS lc_col_message TYPE lvc_fname VALUE 'MESSAGE'.
+
+    TRY.
+
+
+        "Use Factory ALV
+        cl_salv_table=>factory(
+          IMPORTING
+            r_salv_table = go_alv   " Basis Class Simple ALV Tables
+          CHANGING
+            t_table      = ct_table
+        ).
+
+        "Make row and columns as selectable
+        go_alv->get_selections( )->set_selection_mode( if_salv_c_selection_mode=>row_column ).
+
+
+*      ALV Header List
+        me->_set_alv_header( lines( ct_table ) ).
+
+        "Set Stripped Pattern
+        go_alv->get_display_settings( )->set_striped_pattern( abap_true ).
+
+        "Set all functions
+        go_alv->get_functions( )->set_all( ).
+
+        go_alv->get_columns( )->set_optimize( ).
+
+        "Display the ALV output
+        go_alv->display( ).
+
+      CATCH cx_salv_not_found.
+
+        "Text-025: Alv Error
+        MESSAGE TEXT-012 TYPE 'E' ."gc_msg_type-err.
+      CATCH cx_salv_msg.
+
+        "Text-025: Alv Error
+        MESSAGE TEXT-012 TYPE 'E'. "gc_msg_type-err.
+    ENDTRY.
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Protected Method ZCL_XX_MIGRATION->AUTOMAP_BAPI_FIELDS
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IS_STR                         TYPE        ANY
+* | [--->] IS_STRUCTURE_NAME              TYPE        STRUKNAME
+* | [<---] ES_BAPI_STR                    TYPE        ANY
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD automap_bapi_fields.
+
+    DATA lt_fieldcat TYPE lvc_t_fcat.
+
+    CALL FUNCTION 'LVC_FIELDCATALOG_MERGE'
+      EXPORTING
+        i_structure_name       = is_structure_name
+      CHANGING
+        ct_fieldcat            = lt_fieldcat
+      EXCEPTIONS
+        inconsistent_interface = 1
+        program_error          = 2
+        OTHERS                 = 3.
+    IF sy-subrc <> 0.
+
+    ENDIF.
+    TRY.
+        DATA(lo_typedescr_field) = CAST cl_abap_structdescr(
+        cl_abap_typedescr=>describe_by_data( is_str ) ).
+
+        IF lo_typedescr_field IS BOUND.
+
+          LOOP AT lo_typedescr_field->components INTO DATA(ls_field)." ASSIGNING FIELD-SYMBOL(<l_comp>).
+
+            READ TABLE lt_fieldcat INTO DATA(ls_fieldcat) WITH KEY domname = ls_field-name.
+            IF sy-subrc EQ 0.
+              ASSIGN COMPONENT ls_fieldcat-fieldname OF STRUCTURE es_bapi_str TO FIELD-SYMBOL(<lv_bapi_field>).
+              IF sy-subrc EQ 0 AND <lv_bapi_field> IS ASSIGNED.
+                ASSIGN COMPONENT ls_fieldcat-domname OF STRUCTURE is_str TO FIELD-SYMBOL(<lv_input_field>).
+                IF sy-subrc EQ 0 AND <lv_input_field> IS ASSIGNED.
+                  <lv_bapi_field> = <lv_input_field>.
+                ENDIF.
+              ENDIF.
+            ENDIF.
+          ENDLOOP.
+
+        ENDIF.
+
+      CATCH cx_sy_move_cast_error.
+
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Public Method ZCL_XX_MIGRATION->READ_EXCEL_NEW
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_STRUCTURE_NAME              TYPE        TABNAME
+* | [--->] IV_FILENAME                    TYPE        LOCALFILE
+* | [<---] CT_TABLE                       TYPE        STANDARD TABLE
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  METHOD read_excel_new.
+    TYPES: BEGIN OF xls_line,
+             data(256) TYPE x,
+           END OF xls_line.
+
+    DATA : lt_bin_data TYPE STANDARD TABLE OF xls_line,
+           lv_file     TYPE string VALUE 'C:\Demo\Test.xlsx'.
+
+    cl_gui_frontend_services=>gui_upload(
+      EXPORTING
+        filename = CONV #( iv_filename )
+        filetype = 'BIN'
+      IMPORTING
+        filelength = DATA(lv_file_length)
+        header   = DATA(lv_xstring_header)
+      CHANGING
+        data_tab = lt_bin_data
+      EXCEPTIONS
+        OTHERS = 99 ).
+
+    "CALL FUNCTION 'SCMS_BINARY_TO_XSTRING'
+    CALL FUNCTION 'SCMS_BINARY_TO_XSTRING'
+      EXPORTING
+        input_length = lv_file_length
+      IMPORTING
+        buffer       = lv_xstring_header
+      TABLES
+        binary_tab   = lt_bin_data
+      EXCEPTIONS
+        failed       = 1
+        OTHERS       = 2.
+    IF sy-subrc = 0.
+
+      TRY.
+          DATA(lo_excel) = NEW cl_fdt_xl_spreadsheet(
+                         document_name = CONV #( iv_filename )
+                         xdocument     = lv_xstring_header ) .
+
+          lo_excel->if_fdt_doc_spreadsheet~get_worksheet_names(
+            IMPORTING
+              worksheet_names = DATA(lt_worksheets) ).
+
+          DATA(lv_woksheetname) = lt_worksheets[ 1 ].  "Read first sheet
+          DATA(lo_data_ref) = lo_excel->if_fdt_doc_spreadsheet~get_itab_from_worksheet(
+                                           lv_woksheetname ).
+
+          ASSIGN lo_data_ref->* TO FIELD-SYMBOL(<lfs_data_tab>).
+
+          ct_table = CORRESPONDING #( <lfs_data_tab> ).
+*          cl_demo_output=>display( <lfs_data_tab> ).
+
+        CATCH cx_fdt_excel_core.
+          "Error handling
+      ENDTRY.
+
+    ENDIF.
+  ENDMETHOD.
+
+
+* <SIGNATURE>---------------------------------------------------------------------------------------+
+* | Instance Private Method ZCL_XX_MIGRATION->_SET_ALV_HEADER
+* +-------------------------------------------------------------------------------------------------+
+* | [--->] IV_LINES                       TYPE        SYST_TABIX
+* +--------------------------------------------------------------------------------------</SIGNATURE>
+  method _SET_ALV_HEADER.
+    DATA(lo_header) = NEW cl_salv_form_layout_grid( ).
+
+*    DATA(lv_count) = lines( gt_final_alv ).
+
+    "Text-005:- Mass Inspection Characteristics
+    lo_header->create_label( row = 1 column = 1 )->set_text( TEXT-005 ).
+
+    "New Line
+    lo_header->create_label( row = 2 column = 1 )->set_text( cl_abap_char_utilities=>newline ).
+
+
+
+    "Text-006:- Number of Records Displayed:
+    lo_header->create_label( row = 3 column = 1 )->set_text( TEXT-006 ).
+
+    lo_header->create_label( row = 3 column = 2 )->set_text( iv_lines ).
+
+    lo_header->create_label( row = 4 column = 1 )->set_text( cl_abap_char_utilities=>newline ).
+
+
+    IF gv_failed GT 0.
+
+      "Text-007:- Number of Error Records:
+      lo_header->create_label( row = 7 column = 1 )->set_text( TEXT-007 ).
+
+      lo_header->create_label( row = 7 column = 2 )->set_text( gv_failed ).
+
+      lo_header->create_label( row = 8 column = 1 )->set_text( cl_abap_char_utilities=>newline ).
+    ENDIF.
+
+    "Text-011:- Number of Success Records
+    lo_header->create_label( row = 8 column = 1 )->set_text( TEXT-011 ).
+
+    lo_header->create_label( row = 8 column = 2 )->set_text( iv_lines - gv_failed ).
+
+    lo_header->create_label( row = 9 column = 1 )->set_text( cl_abap_char_utilities=>newline ).
+
+    "Text-009:- Number of Error Records:
+    lo_header->create_label( row = 10 column = 1 )->set_text( TEXT-009 ).
+
+
+    IF gv_test_run EQ  abap_true.
+
+      "Text-008:- Test Run
+      lo_header->create_label( row = 10 column = 2 )->set_text( TEXT-008 ).
+    ELSE.
+
+      "Text-014:- Production Run
+      lo_header->create_label( row = 10 column = 2 )->set_text( TEXT-014 ).
+    ENDIF.
+
+
+    go_alv->set_top_of_list( lo_header ).
+    go_alv->set_top_of_list_print( lo_header ).
+  endmethod.
+ENDCLASS.

@@ -1,0 +1,456 @@
+*&---------------------------------------------------------------------*
+*& Include          ZMM_MATERIAL_MIGRATION_CLS
+*&---------------------------------------------------------------------*
+CLASS lcl_MATERIAL_MIGRATION_CLS DEFINITION INHERITING FROM zcl_xx_migration.
+
+  PUBLIC SECTION.
+
+    INCLUDE zmm_material_migration_dat.
+
+    METHODS:
+
+      execute,
+
+      convert_input_to_output REDEFINITION,
+
+      call_bapi REDEFINITION.
+
+  PRIVATE SECTION.
+
+    METHODS:
+      get_new_matnr IMPORTING iv_mtart TYPE mtart iv_mbrsh TYPE mbrsh RETURNING VALUE(rv_matnr) TYPE matnr,
+
+      get_head_data   EXPORTING es_headdata TYPE bapimathead,
+
+      "Method with work areas.
+      get_client_data IMPORTING is_final TYPE zt_final
+        EXPORTING es_clientdata TYPE bapi_mara es_clientdata_x TYPE bapi_marax,
+
+      get_plant_data  IMPORTING is_final TYPE zt_final
+        EXPORTING es_plantdata TYPE bapi_marc es_plantdata_x TYPE bapi_marcx,
+
+      get_planning_data IMPORTING is_final TYPE zt_final
+        EXPORTING es_planningdata TYPE bapi_mpgd es_planningdata_x TYPE bapi_mpgdx,
+
+      get_storagelocation_data IMPORTING is_final TYPE zt_final
+        EXPORTING es_storagelocationdata TYPE bapi_mard es_storagelocationdata_x TYPE bapi_mardx,
+
+      get_valuation_data IMPORTING is_final TYPE zt_final
+        EXPORTING es_valuationdata TYPE bapi_mbew es_valuationdata_x TYPE bapi_mbewx,
+
+      get_sales_data IMPORTING is_final TYPE zt_final
+        EXPORTING es_salesdata TYPE bapi_mvke es_salesdata_x TYPE bapi_mvkex,
+
+      "Methods with internal tables.
+      get_materialdescription IMPORTING is_final TYPE zt_final EXPORTING et_materialdescription TYPE tt_bapi_makt,
+
+      get_unitsofmeasure IMPORTING is_final TYPE zt_final
+        EXPORTING et_unitsofmeasure TYPE tt_bapi_marm et_unitsofmeasure_x TYPE tt_bapi_marmx,
+
+      get_taxclassifications IMPORTING is_final TYPE zt_final
+        EXPORTING et_taxclassifications TYPE t_bapi_mlan." et_unitsofmeasure_x TYPE tt_bapi_marmx,
+
+
+ENDCLASS.
+
+CLASS lcl_MATERIAL_MIGRATION_CLS IMPLEMENTATION.
+
+  METHOD get_taxclassifications.
+
+    APPEND INITIAL LINE TO et_taxclassifications ASSIGNING FIELD-SYMBOL(<ls_taxclassifications>).
+
+    automap_bapi_fields(
+      EXPORTING
+        is_str            = is_final
+        is_structure_name = 'BAPI_MLAN'                  " Name of a structure
+      IMPORTING
+        es_bapi_str       = <ls_taxclassifications>
+    ).
+
+
+
+  ENDMETHOD.
+
+  METHOD get_unitsofmeasure.
+
+    APPEND INITIAL LINE TO et_unitsofmeasure ASSIGNING FIELD-SYMBOL(<ls_unitsofmeasure>).
+
+    automap_bapi_fields(
+      EXPORTING
+        is_str            = is_final
+        is_structure_name = 'BAPI_MARM'                  " Name of a structure
+      IMPORTING
+        es_bapi_str       = <ls_unitsofmeasure>
+    ).
+
+    APPEND INITIAL LINE TO et_unitsofmeasure_x ASSIGNING FIELD-SYMBOL(<ls_unitsofmeasure_x>).
+
+        fill_bapix_str(
+      EXPORTING
+        is_str   = <ls_unitsofmeasure>
+      IMPORTING
+        es_str_x = <ls_unitsofmeasure_x>
+    ).
+
+  ENDMETHOD.
+
+  METHOD get_materialdescription.
+
+  ENDMETHOD.
+
+  METHOD get_sales_data.
+
+    automap_bapi_fields(
+      EXPORTING
+        is_str            = is_final
+        is_structure_name = 'BAPI_MVKE'                 " Name of a structure
+     IMPORTING
+    es_bapi_str       = es_salesdata
+).
+
+    "Manual map here.
+
+
+    fill_bapix_str(
+      EXPORTING
+        is_str   = es_salesdata
+      IMPORTING
+        es_str_x = es_salesdata_x
+    ).
+  ENDMETHOD.
+
+  METHOD get_valuation_data.
+
+    automap_bapi_fields(
+     EXPORTING
+       is_str            = is_final
+       is_structure_name = 'BAPI_MBEW'                 " Name of a structure
+     IMPORTING
+       es_bapi_str       = es_valuationdata
+   ).
+
+    "Manual map here.
+
+
+    fill_bapix_str(
+      EXPORTING
+        is_str   = es_valuationdata
+      IMPORTING
+        es_str_x = es_valuationdata_x
+    ).
+  ENDMETHOD.
+
+  METHOD get_storagelocation_data.
+    automap_bapi_fields(
+      EXPORTING
+        is_str            = is_final
+        is_structure_name = 'BAPI_MARD'                 " Name of a structure
+      IMPORTING
+        es_bapi_str       = es_storagelocationdata
+    ).
+
+    "Manual map here.
+
+
+    fill_bapix_str(
+      EXPORTING
+        is_str   = es_storagelocationdata
+      IMPORTING
+        es_str_x = es_storagelocationdata_x
+    ).
+  ENDMETHOD.
+
+  METHOD get_planning_data.
+    automap_bapi_fields(
+      EXPORTING
+        is_str            = is_final
+        is_structure_name = 'BAPI_MPGD'                 " Name of a structure
+      IMPORTING
+        es_bapi_str       = es_planningdata
+    ).
+
+    "Manual map here.
+
+
+    fill_bapix_str(
+      EXPORTING
+        is_str   = es_planningdata
+      IMPORTING
+        es_str_x = es_planningdata_x
+    ).
+  ENDMETHOD.
+
+  METHOD get_client_data.
+
+    automap_bapi_fields(
+      EXPORTING
+        is_str            = is_final
+        is_structure_name = 'BAPI_MARA'                 " Name of a structure
+      IMPORTING
+        es_bapi_str       = es_clientdata
+    ).
+
+    "Manual map here.
+
+
+    fill_bapix_str(
+      EXPORTING
+        is_str   = es_clientdata
+      IMPORTING
+        es_str_x = es_clientdata_x
+    ).
+
+    "Map other fields manually.
+  ENDMETHOD.
+
+  METHOD get_plant_data.
+
+    automap_bapi_fields(
+  EXPORTING
+    is_str            = is_final
+    is_structure_name = 'BAPI_MARC'                 " Name of a structure
+  IMPORTING
+    es_bapi_str       = es_plantdata
+).
+
+    "Manual map here.
+
+
+    fill_bapix_str(
+      EXPORTING
+        is_str   = es_plantdata
+      IMPORTING
+        es_str_x = es_plantdata_x
+    ).
+
+  ENDMETHOD.
+
+  METHOD get_head_data.
+    es_headdata-basic_view      = abap_true.
+    es_headdata-cost_view       = abap_true.
+    es_headdata-account_view    = abap_true.
+    es_headdata-mrp_view        = abap_true.
+    es_headdata-prt_view        = abap_true.
+    es_headdata-work_sched_view = abap_true.
+    es_headdata-purchase_view   = abap_true.
+    es_headdata-cost_view       = abap_true.
+    es_headdata-storage_view    = abap_true.
+    es_headdata-quality_view    = abap_true.
+    es_headdata-warehouse_view  = abap_true.
+    es_headdata-sales_view      = abap_true.
+    es_headdata-ind_sector      = 'M'.
+    es_headdata-matl_type       = 'FERT'.
+
+    "GEt new material number
+*    es_headdata-material        = "ls_new_mat_deep-matnr.
+
+  ENDMETHOD.
+
+  METHOD get_new_matnr.
+    DATA lt_material_number TYPE TABLE OF bapimatinr.
+
+    CALL FUNCTION 'BAPI_MATERIAL_GETINTNUMBER'  "#EC CI_USAGE_OK[2438131], [S4], 2023-04-19, CBS Faris Nazhan, MATNR field length ext. usage in BAPI and RFC
+      EXPORTING
+        material_type   = iv_mtart
+        industry_sector = iv_mbrsh
+      TABLES
+        material_number = lt_material_number.
+
+    READ TABLE lt_material_number INTO DATA(ls_material_number) INDEX 1.
+    IF sy-subrc EQ 0.
+      rv_matnr = ls_material_number.
+    ENDIF.
+  ENDMETHOD.
+  METHOD execute.
+
+    read_excel(
+    EXPORTING
+      iv_structure_name = 'ZSTR_MIGR_TEMP'                 " Table Name
+      iv_filename       = p_file                  " Local file for upload/download
+    IMPORTING
+      ct_table          = gt_input
+  ).
+
+    convert_input_to_output( ).
+
+    IF gt_final IS NOT INITIAL.
+
+      me->call_bapi( ).
+
+    ENDIF.
+
+    IF gt_alv IS NOT INITIAL.
+      show_alv(
+        CHANGING
+          ct_table = gt_alv
+      ).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD call_bapi.
+*      DATA:
+*        lv_matnr               TYPE  matnr,
+*        ls_clientdata          TYPE  bapi_mara,
+*        ls_plantdata           TYPE  bapi_marc,
+*        ls_forecastparameters  TYPE  bapi_mpop,
+*        ls_planningdata        TYPE  bapi_mpgd,
+*        ls_storagelocationdata TYPE  bapi_mard,
+*        ls_valuationdata       TYPE  bapi_mbew,
+*        ls_warehousenumberdata TYPE  bapi_mlgn,
+*        ls_salesdata           TYPE  bapi_mvke,
+*        ls_storagetypedata     TYPE  bapi_mlgt,
+*        ls_prtdata             TYPE  bapi_mfhm,
+*        ls_lifovaluationdata   TYPE  bapi_myms,
+**    is_mp_clientdata      TYPE  /sapmp/bapi_mara,
+*        lt_materialdescription TYPE  tt_bapi_makt,
+*        lt_unitsofmeasure      TYPE  tt_bapi_marm,
+*        lt_taxclassifications  TYPE  t_bapi_mlan,
+**      lt_extensionin         TYPE  zt_t_bapiparex,
+*        lt_internationalartnos TYPE  tt_bapi_mean,
+*        lt_materiallongtext    TYPE  t_bapi_mltx,
+*        lt_return              TYPE  bapi_matreturn2,
+*        ls_headdata            TYPE  bapimathead,
+*        lv_success             TYPE boolean.
+*
+*      "X-Structures.
+*      DATA:
+*        ls_clientdata_x          TYPE  bapi_marax,
+*        ls_plantdata_x           TYPE  bapi_marcx,
+*        ls_forecastparameters_x  TYPE  bapi_mpopx,
+*        ls_planningdata_x        TYPE  bapi_mpgdx,
+*        ls_storagelocationdata_x TYPE  bapi_mardx,
+*        ls_valuationdata_x       TYPE  bapi_mbewx,
+*        ls_warehousenumberdata_x TYPE  bapi_mlgnx,
+*        ls_salesdata_x           TYPE  bapi_mvkex,
+*        ls_storagetypedata_x     TYPE  bapi_mlgtx,
+*        lt_prtdata_x             TYPE  bapi_mfhmx,
+*        lt_unitsofmeasure_x      TYPE  tt_bapi_marmx.
+*    lt_extensionin       TYPE  zt_t_bapiparexx,
+    DATA:
+      ls_return TYPE  bapi_matreturn2,
+      lt_return TYPE TABLE OF bapi_matreturn2.
+
+    LOOP AT gt_final INTO DATA(ls_final).
+
+      get_head_data(
+        IMPORTING
+          es_headdata = DATA(ls_headdata)
+      ).
+
+      get_client_data(
+      EXPORTING is_final = ls_final
+        IMPORTING
+          es_clientdata   = DATA(ls_clientdata)
+          es_clientdata_x = DATA(ls_clientdata_x) ).
+
+      get_plant_data(
+        EXPORTING
+          is_final        = ls_final
+        IMPORTING
+          es_plantdata    = DATA(ls_plantdata)
+          es_plantdata_x  = DATA(ls_plantdata_x)
+      ).
+
+      get_planning_data(
+        EXPORTING
+          is_final          = ls_final
+        IMPORTING
+          es_planningdata   = DATA(ls_planningdata)
+          es_planningdata_x = DATA(ls_planningdata_x)
+      ).
+
+      get_storagelocation_data(
+        EXPORTING
+          is_final                 = ls_final
+        IMPORTING
+          es_storagelocationdata   =   DATA(ls_storagelocationdata)
+          es_storagelocationdata_x =   DATA(ls_storagelocationdata_x)
+      ).
+
+      get_valuation_data(
+        EXPORTING
+          is_final            = ls_final
+        IMPORTING
+          es_valuationdata    = DATA(ls_valuationdata)
+          es_valuationdata_x  = DATA(ls_valuationdata_x)
+      ).
+
+      get_sales_data(
+        EXPORTING
+          is_final       = ls_final
+        IMPORTING
+          es_salesdata   =   DATA(ls_salesdata)
+          es_salesdata_x =   DATA(ls_salesdata_x)
+      ).
+
+
+      get_materialdescription(
+        EXPORTING
+          is_final               = ls_final
+        IMPORTING
+          et_materialdescription = DATA(lt_materialdescription)
+      ).
+
+      get_unitsofmeasure(
+        EXPORTING
+          is_final            = ls_final
+        IMPORTING
+          et_unitsofmeasure   = DATA(lt_unitsofmeasure)
+          et_unitsofmeasure_x = DATA(lt_unitsofmeasure_x)
+      ).
+
+      get_taxclassifications(
+        EXPORTING
+          is_final              = ls_final
+        IMPORTING
+          et_taxclassifications = DATA(lt_taxclassifications)
+      ).
+
+      CALL FUNCTION 'BAPI_MATERIAL_SAVEDATA'
+        EXPORTING
+          headdata             = ls_headdata
+          clientdata           = ls_clientdata
+          clientdatax          = ls_clientdata_x
+          plantdata            = ls_plantdata
+          plantdatax           = ls_plantdata_x
+          planningdata         = ls_planningdata
+          planningdatax        = ls_planningdata_x
+          storagelocationdata  = ls_storagelocationdata
+          storagelocationdatax = ls_storagelocationdata_x
+          valuationdata        = ls_valuationdata
+          valuationdatax       = ls_valuationdata_x
+          salesdata            = ls_salesdata
+          salesdatax           = ls_salesdata_x
+        IMPORTING
+          return               = ls_return
+        TABLES
+          materialdescription  = lt_materialdescription
+          unitsofmeasure       = lt_unitsofmeasure
+          unitsofmeasurex      = lt_unitsofmeasure_x
+          taxclassifications   = lt_taxclassifications
+          returnmessages       = lt_return.
+
+      APPEND INITIAL LINE TO gt_alv ASSIGNING FIELD-SYMBOL(<ls_alv>).
+      <ls_alv>-matnr = ls_headdata-material.
+
+      me->handle_bapi_messages( EXPORTING is_return = ls_return is_alv = <ls_alv>  ).
+
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD convert_input_to_output.
+    LOOP AT gt_input INTO DATA(ls_input).
+
+      "For common conv.
+      APPEND INITIAL LINE TO gt_final ASSIGNING FIELD-SYMBOL(<ls_final>).
+      <ls_final> = CORRESPONDING #( ls_input ).
+
+      super->convert_input_to_output( CHANGING cs_str = <ls_final> ).
+
+      "Other conversions.
+    ENDLOOP.
+  ENDMETHOD.
+
+
+ENDCLASS.
