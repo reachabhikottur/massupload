@@ -1,0 +1,135 @@
+*&---------------------------------------------------------------------*
+*& Include          ZQM_INSPECTION_PLAN_CHAR_CLS
+*&---------------------------------------------------------------------*
+
+CLASS lcl_qpmk_replica DEFINITION INHERITING FROM zcl_xx_migration.
+  PUBLIC SECTION.
+    INCLUDE zqm_inspection_plan_char_dat.
+    "Table types
+TYPES: zt_t_BAPIQPMK_QPMK TYPE TABLE OF BAPIQPMK_QPMK,
+       zt_t_BAPIQPMK_QPMZ TYPE TABLE OF BAPIQPMK_QPMZ,
+       zt_t_BAPIQPMK_QPMT TYPE TABLE OF BAPIQPMK_QPMT,
+       zt_t_BAPIQPMK_LONGTEXT TYPE TABLE OF BAPIQPMK_LONGTEXT,
+       zt_t_BAPIQPMK_SMPL_LTXT TYPE TABLE OF BAPIQPMK_SMPL_LTXT,
+       zt_t_BAPIRET2 TYPE TABLE OF BAPIRET2,
+       zt_t_BAPIEXTC TYPE TABLE OF BAPIEXTC.
+
+    METHODS:
+      call_bapi REDEFINITION,
+
+      get_mstcha IMPORTING is_final  TYPE zt_final
+                 EXPORTING et_mstcha TYPE zt_t_BAPIQPMK_QPMK,
+      get_mstcha_insp_meth IMPORTING is_final            TYPE zt_final
+                           EXPORTING et_mstcha_insp_meth TYPE zt_t_BAPIQPMK_QPMZ,
+      get_mstcha_text IMPORTING is_final       TYPE zt_final
+                      EXPORTING et_mstcha_text TYPE zt_t_BAPIQPMK_QPMT,
+      get_mstcha_longtext IMPORTING is_final           TYPE zt_final
+                          EXPORTING et_mstcha_longtext TYPE zt_t_BAPIQPMK_LONGTEXT,
+      get_mstcha_smpl_ltxt IMPORTING is_final            TYPE zt_final
+                           EXPORTING et_mstcha_smpl_ltxt TYPE zt_t_BAPIQPMK_SMPL_LTXT.
+ENDCLASS.
+
+CLASS lcl_qpmk_replica IMPLEMENTATION.
+  METHOD get_mstcha.
+    APPEND INITIAL LINE TO et_mstcha ASSIGNING FIELD-SYMBOL(<ls_mstcha>).
+
+    automap_bapi_fields(
+      EXPORTING
+        is_str            = is_final
+        is_structure_name = 'BAPIQPMK_QPMK'                  " Name of a structure
+      IMPORTING
+        es_bapi_str       = <ls_mstcha>
+    ).
+  ENDMETHOD.
+
+  METHOD get_mstcha_insp_meth.
+    APPEND INITIAL LINE TO et_mstcha_insp_meth ASSIGNING FIELD-SYMBOL(<ls_mstcha_insp_meth>).
+
+    automap_bapi_fields(
+      EXPORTING
+        is_str            = is_final
+        is_structure_name = 'BAPIQPMK_QPMZ'                  " Name of a structure
+      IMPORTING
+        es_bapi_str       = <ls_mstcha_insp_meth>
+    ).
+  ENDMETHOD.
+
+  METHOD get_mstcha_text.
+    APPEND INITIAL LINE TO et_mstcha_text ASSIGNING FIELD-SYMBOL(<ls_mstcha_text>).
+
+    automap_bapi_fields(
+      EXPORTING
+        is_str            = is_final
+        is_structure_name = 'BAPIQPMK_QPMT'                  " Name of a structure
+      IMPORTING
+        es_bapi_str       = <ls_mstcha_text>
+    ).
+  ENDMETHOD.
+
+  METHOD get_mstcha_longtext.
+    APPEND INITIAL LINE TO et_mstcha_longtext ASSIGNING FIELD-SYMBOL(<ls_mstcha_longtext>).
+
+    automap_bapi_fields(
+      EXPORTING
+        is_str            = is_final
+        is_structure_name = 'BAPIQPMK_LONGTEXT'                  " Name of a structure
+      IMPORTING
+        es_bapi_str       = <ls_mstcha_longtext>
+    ).
+  ENDMETHOD.
+
+  METHOD get_mstcha_smpl_ltxt.
+    APPEND INITIAL LINE TO et_mstcha_smpl_ltxt ASSIGNING FIELD-SYMBOL(<ls_mstcha_smpl_ltxt>).
+
+    automap_bapi_fields(
+      EXPORTING
+        is_str            = is_final
+        is_structure_name = 'BAPIQPMK_SMPL_LTXT'                  " Name of a structure
+      IMPORTING
+        es_bapi_str       = <ls_mstcha_smpl_ltxt>
+    ).
+  ENDMETHOD.
+
+  METHOD call_bapi.
+
+    LOOP AT gt_final INTO DATA(ls_final).
+
+
+      get_mstcha(
+        EXPORTING
+          is_final  = ls_final
+        IMPORTING
+          et_mstcha = DATA(lt_mstcha)
+      ).
+
+      get_mstcha_insp_meth(
+        EXPORTING
+          is_final            = ls_final
+        IMPORTING
+          et_mstcha_insp_meth = DATA(lt_mstcha_insp_meth)
+      ).
+
+      get_mstcha_text(
+        EXPORTING
+          is_final       = ls_final
+        IMPORTING
+          et_mstcha_text = DATA(lt_mstcha_text)
+      ).
+
+      get_mstcha_longtext(
+        EXPORTING
+          is_final           = ls_final
+        IMPORTING
+          et_mstcha_longtext = DATA(lt_mstcha_longtext)
+      ).
+
+      get_mstcha_smpl_ltxt(
+        EXPORTING
+          is_final            = ls_final
+        IMPORTING
+          et_mstcha_smpl_ltxt = DATA(lt_mstcha_smpl_ltxt)
+      ).
+
+    ENDLOOP.
+  ENDMETHOD.
+ENDCLASS.
