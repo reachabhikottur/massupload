@@ -1,0 +1,285 @@
+FUNCTION z_pp_mass_routing_inspection.
+*"----------------------------------------------------------------------
+*"*"Local Interface:
+*"  IMPORTING
+*"     VALUE(IT_ROUTING_INSP) TYPE  ZTTPP_MASS_INSPECTION
+*"     VALUE(IT_INSP_CHAR) TYPE  ZTTPP_INSP_CHARACTERISTICS
+*"     VALUE(IV_TEST_RUN) TYPE  FLAG OPTIONAL
+*"  EXPORTING
+*"     VALUE(ET_RETURN) TYPE  ZTTPP_MASS_INSPECTION
+*"     VALUE(EV_FAILED) TYPE  I
+*"----------------------------------------------------------------------
+  DATA:
+    lt_insp_char_fil    TYPE zttpp_insp_characteristics,
+    lt_bapi_opp         TYPE TABLE OF bapi_es_task_maint_opr,
+    lt_bapi_opp_x       TYPE TABLE OF bapi_es_task_maint_opr_x,
+    lt_bapi_insp_char   TYPE TABLE OF bapi_es_task_maint_cha,
+    lt_bapi_insp_char_x TYPE TABLE OF bapi_es_task_maint_cha_x,
+    lt_bapi_return      TYPE TABLE OF bapiret2.
+
+  CONSTANTS:
+
+    BEGIN OF lc_msg_type,
+      abr  TYPE c VALUE 'A',
+      err  TYPE c VALUE  'E',        "Error Type
+      succ TYPE c VALUE 'S',         "Success Type
+    END OF lc_msg_type,
+
+    BEGIN OF lc_traffic,
+      red   TYPE /bsn/cc_traffic_icon VALUE '@0A@', "Red Light
+      green TYPE /bsn/cc_traffic_icon VALUE '@08@', "Green Light
+    END OF lc_traffic,
+
+    lc_create           TYPE bapi_es_task_maint_mode VALUE 'C',
+    lc_0                TYPE bapi_es_task_maint_cha-sequence_no VALUE '0',
+    lc_1                TYPE bapi_es_task_maint_cha-vmethod VALUE '1',
+    lc_plus             TYPE bapi_es_task_maint_cha-result_recording_type VALUE '+',
+    lc_semi             TYPE char1 VALUE ';',
+    lc_mno_59           TYPE bapiret2-number VALUE '059',
+    lc_cp_es_task_maint TYPE bapiret2-id VALUE 'CP_ES_TASK_MAINT',
+    lc_last_date        TYPE bapi_es_task_maint_cha-dat_up_new_lmt VALUE '99991231'.
+
+  CLEAR: et_return, ev_failed.
+
+  "Process the routing
+  LOOP AT it_routing_insp INTO DATA(ls_routing_insp).
+
+
+    LOOP AT ls_routing_insp-opperation INTO DATA(ls_opp).
+
+      "Filter the Inspection char as per the slected opperations
+      lt_insp_char_fil = FILTER #( it_insp_char WHERE insp_sec = ls_opp-insp_sec ).
+
+      "Incase the new opperations needs to be created
+      IF ls_opp-new_opp EQ abap_true.
+
+        "Initialize the opperation table
+        APPEND INITIAL LINE TO lt_bapi_opp ASSIGNING FIELD-SYMBOL(<ls_bapi_opp>).
+
+        "Convert the Unit of measure from External to Internal format
+        PERFORM conv_meins CHANGING ls_opp-operation_measure_unit.
+
+        PERFORM conv_meins CHANGING ls_opp-std_unit_01.
+
+        "Move the values uploaded from Excel
+        <ls_bapi_opp> = CORRESPONDING #( ls_opp ).
+
+        "Append fixed fieldds
+        <ls_bapi_opp> = VALUE #( BASE <ls_bapi_opp>
+           maintain_mode = lc_create
+           sequence_no   = |{ lc_0 ALPHA = IN }|
+           plant         = ls_routing_insp-werks
+           denominator   = 1 ).
+
+        "Fill BAPI X char
+        lt_bapi_opp_x = VALUE #( BASE lt_bapi_opp_x (
+         activity               = abap_true
+         control_key            = abap_true
+         work_cntr              = abap_true
+         description            = abap_true
+         nominator              = abap_true
+         base_quantity          = abap_true
+         denominator            = abap_true
+         plant                  = abap_true
+         operation_measure_unit = abap_true
+         std_value_01           = abap_true
+         std_unit_01            = abap_true ) ).
+
+      ENDIF.
+
+      "Process Each inspection
+      LOOP AT lt_insp_char_fil ASSIGNING FIELD-SYMBOL(<ls_insp_char>).
+
+        APPEND INITIAL LINE TO  lt_bapi_insp_char
+        ASSIGNING FIELD-SYMBOL(<ls_bapi_insp_char>).
+
+        APPEND INITIAL LINE TO  lt_bapi_insp_char_x
+        ASSIGNING FIELD-SYMBOL(<ls_bapi_insp_char_x>).
+
+        "Common char's maintained in the Table
+        <ls_bapi_insp_char> =  CORRESPONDING #( <ls_insp_char> ) .
+
+        "Common data
+        <ls_bapi_insp_char> =  VALUE #( BASE <ls_bapi_insp_char>
+          maintain_mode           = lc_create
+          activity                = ls_opp-activity
+          sequence_no             = |{ lc_0 ALPHA = IN }|
+          vmethod                 = |{ lc_1 ALPHA = IN }|
+          sampling_procedure_ind  = abap_true
+          print_ind               = abap_true
+          confirmation_category   = abap_true
+          result_recording_type   = lc_plus ).
+
+        "BAPI X
+        <ls_bapi_insp_char_x> = VALUE #(
+          vmethod               = abap_true
+          mstr_char             = abap_true
+          pmstr_char            = abap_true
+          char_descr            = abap_true
+          method                = abap_true
+          pmethod               = abap_true
+          smpl_procedure        = abap_true
+          confirmation_category = abap_true
+          result_recording_type = abap_true ).
+
+        "Qualitative Inspection types
+        IF <ls_insp_char>-sel_set1 IS NOT INITIAL.
+
+          "Data specific to Quality
+          <ls_bapi_insp_char> = VALUE #( BASE <ls_bapi_insp_char>
+           ind_selset_or_codegrp1  = abap_true
+           cat_type1               = 1
+           attribute_required_ind  = abap_true ).
+
+          "BAPI X
+          <ls_bapi_insp_char_x> = VALUE #( BASE <ls_bapi_insp_char_x>
+            ind_selset_or_codegrp1 = abap_true
+            cat_type1              = abap_true
+            psel_set1              = abap_true
+            attribute_required_ind = abap_true ).
+
+        ELSE.
+
+          "Check weather the upper limit is provided
+          DATA(lv_up_tol_lmt_ind) =  COND #( WHEN <ls_bapi_insp_char>-up_tol_lmt
+          IS NOT INITIAL THEN abap_true ELSE abap_false ).
+
+          "Check weather the Lower limit is provided
+          DATA(lv_lw_tol_lmt_ind) =  COND #( WHEN <ls_bapi_insp_char>-up_tol_lmt
+          IS NOT INITIAL THEN abap_true ELSE abap_false ).
+
+          "Check weather the Target value is provided
+          DATA(lv_target_val_check_ind) = COND #( WHEN <ls_bapi_insp_char>-target_val
+          IS NOT INITIAL THEN abap_true ELSE abap_false ).
+
+          "Fill the Quantitative data
+          <ls_bapi_insp_char> = VALUE #( BASE <ls_bapi_insp_char>
+          quantitative_ind        = abap_true
+          up_tol_lmt_ind          = lv_up_tol_lmt_ind
+          lw_tol_lmt_ind          = lv_lw_tol_lmt_ind
+          target_val_check_ind    = lv_target_val_check_ind
+          up_tol_lmt_ni           = lv_up_tol_lmt_ind
+          lw_tol_lmt_ni           = lv_lw_tol_lmt_ind
+          target_val_ni           = lv_target_val_check_ind
+          dat_up_new_lmt          = sy-datum
+          dat_lw_new_lmt          = lc_last_date
+          meas_value_confirm_ind  = abap_true ) .
+
+          "Fill the BAPI X
+          <ls_bapi_insp_char_x> = VALUE #( BASE <ls_bapi_insp_char_x>
+          dec_places             = abap_true
+          meas_unit              = abap_true
+          up_tol_lmt_ind         = lv_up_tol_lmt_ind
+          lw_tol_lmt_ind         = lv_lw_tol_lmt_ind
+          target_val_check_ind   = lv_target_val_check_ind
+          quantitative_ind       = abap_true
+          target_val             = lv_target_val_check_ind
+          lw_tol_lmt             = lv_lw_tol_lmt_ind
+          up_tol_lmt             = lv_up_tol_lmt_ind
+          meas_value_confirm_ind = abap_true
+          dat_up_new_lmt         = abap_true
+          dat_lw_new_lmt         = abap_true ).
+
+          CLEAR: lv_up_tol_lmt_ind,lv_lw_tol_lmt_ind.
+        ENDIF.
+
+      ENDLOOP.
+
+      CLEAR: lt_insp_char_fil, ls_opp.
+    ENDLOOP.
+
+    "Call the BAPI
+    CALL FUNCTION 'BAPI_ES_ROUTING_CHANGE'
+      EXPORTING
+        task_list_group              = ls_routing_insp-plnnr
+        key_date                     = sy-datum
+        group_counter                = ls_routing_insp-plnal
+        plant                        = ls_routing_insp-werks
+      TABLES
+        operations                   = lt_bapi_opp
+        operations_x                 = lt_bapi_opp_x
+        inspection_characteristics   = lt_bapi_insp_char
+        inspection_characteristics_x = lt_bapi_insp_char_x
+        return                       = lt_bapi_return.
+
+    "Check for ABORT Message
+    SORT lt_bapi_return BY type id number.
+    DELETE ADJACENT DUPLICATES FROM lt_bapi_return COMPARING type id number.
+
+    "Read the first row to determine the BAPI Error or success
+    READ TABLE lt_bapi_return INTO DATA(ls_bapi_return) INDEX 1.
+    IF sy-subrc EQ 0.
+
+      "In case of BAPI Error
+      IF ls_bapi_return-type = lc_msg_type-abr OR ls_bapi_return-type EQ lc_msg_type-err.
+
+        "Get the Error message Text
+        LOOP AT lt_bapi_return INTO ls_bapi_return WHERE
+        type = lc_msg_type-err.
+
+          "Append to export table to display error message in ALV
+          CONCATENATE ls_routing_insp-message ls_bapi_return-message
+           INTO ls_routing_insp-message SEPARATED BY lc_semi.
+
+          CLEAR ls_bapi_return.
+        ENDLOOP.
+        REPLACE FIRST OCCURRENCE OF lc_semi IN ls_routing_insp-message WITH abap_false.
+
+        "Set traffic light as red
+        ls_routing_insp-status = lc_traffic-red.
+
+        "Increment the failure total
+        ADD 1 TO ev_failed.
+      ELSE.
+        IF iv_test_run EQ abap_false.
+
+          "Only in Production run
+          CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+            EXPORTING
+              wait = abap_true.
+        ELSE.
+
+          "In case of test run
+          CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+        ENDIF.
+
+        "BAPI Success message
+        READ TABLE lt_bapi_return INTO ls_bapi_return
+        WITH KEY type =  lc_msg_type-succ id = lc_cp_es_task_maint
+         number = lc_mno_59 BINARY SEARCH.
+        IF sy-subrc EQ 0.
+          ls_routing_insp-message = ls_bapi_return-message.
+        ELSE.
+          ls_routing_insp-message = 'Insection type updated Successfully'(001).
+        ENDIF.
+        ls_routing_insp-status = lc_traffic-green.
+      ENDIF.
+    ENDIF.
+
+*    CLEAR ls_routing_insp-opperation.
+    APPEND ls_routing_insp TO et_return.
+
+    CLEAR: ls_routing_insp  ,lt_bapi_opp        ,lt_bapi_opp_x,
+           lt_bapi_insp_char,lt_bapi_insp_char_x,lt_bapi_return,
+           ls_bapi_return   ,ls_routing_insp.
+
+  ENDLOOP.
+
+ENDFUNCTION.
+
+FORM conv_meins CHANGING cv_meins TYPE meins.
+  IF cv_meins IS NOT INITIAL.
+
+    "Convert waight to external format
+    CALL FUNCTION 'CONVERSION_EXIT_CUNIT_INPUT'
+      EXPORTING
+        input          = cv_meins
+      IMPORTING
+        output         = cv_meins
+      EXCEPTIONS
+        unit_not_found = 1
+        OTHERS         = 2.
+    IF sy-subrc <> 0.
+    ENDIF.
+  ENDIF.
+ENDFORM.
