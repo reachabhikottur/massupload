@@ -1,0 +1,230 @@
+*&---------------------------------------------------------------------*
+*& Include          ZMM_MATERIAL_MIGRATION_CLS
+*&---------------------------------------------------------------------*
+CLASS lcl_INSPECTION_PLAN_CLS DEFINITION INHERITING FROM zcl_xx_migration.
+
+  PUBLIC SECTION.
+
+    INCLUDE zqm_inspection_plan_dat.
+
+    METHODS:
+
+      execute,
+
+      convert_input_to_output REDEFINITION,
+
+      call_bapi REDEFINITION.
+
+  PRIVATE SECTION.
+
+    METHODS:
+
+      "Methods with internal tables.
+      get_task IMPORTING is_final TYPE zt_final EXPORTING et_task TYPE zt_t_BAPI1191_TSK_C,
+
+      get_MATERIALTASKALLOCATION IMPORTING is_final TYPE zt_final EXPORTING et_MATERIALTASKALLOCATION TYPE zt_t_BAPI1191_MTK_C,
+
+      get_OPERATION IMPORTING is_final TYPE zt_final EXPORTING et_OPERATION TYPE zt_t_BAPI1191_OPR_C,
+
+      get_INSPCHARACTERISTIC IMPORTING is_final TYPE zt_final EXPORTING et_INSPCHARACTERISTIC TYPE zt_t_BAPI1191_CHA_C.
+
+
+ENDCLASS.
+CLASS lcl_INSPECTION_PLAN_CLS IMPLEMENTATION.
+  METHOD execute.
+
+    read_excel(
+      EXPORTING
+        iv_structure_name = 'ZSTR_MIGR_INSP_PLAN'                 " Table Name
+        iv_filename       = p_file                  " Local file for upload/download
+      IMPORTING
+        ct_table          = gt_input
+    ).
+
+    convert_input_to_output( ).
+
+    IF gt_final IS NOT INITIAL.
+
+      me->call_bapi( ).
+
+    ENDIF.
+
+    IF gt_alv IS NOT INITIAL.
+      show_alv(
+        CHANGING
+          ct_table = gt_alv
+      ).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD get_task.
+
+    APPEND INITIAL LINE TO et_task ASSIGNING FIELD-SYMBOL(<ls_task>).
+
+    automap_bapi_fields(
+      EXPORTING
+        is_str            = is_final
+        is_structure_name = 'BAPI1191_TSK_C'                  " Name of a structure
+      IMPORTING
+        es_bapi_str       = <ls_task>
+    ).
+
+    <ls_task>-valid_from = sy-datum.
+    <ls_task>-plant = is_final-werks.
+
+  ENDMETHOD.
+  METHOD get_MATERIALTASKALLOCATION.
+    APPEND INITIAL LINE TO et_MATERIALTASKALLOCATION ASSIGNING FIELD-SYMBOL(<ls_MATERIALTASKALLOCATION>).
+
+    automap_bapi_fields(
+      EXPORTING
+        is_str            = is_final
+        is_structure_name = 'BAPI1191_MTK_C'                  " Name of a structure
+      IMPORTING
+        es_bapi_str       = <ls_MATERIALTASKALLOCATION>
+    ).
+
+    <ls_MATERIALTASKALLOCATION>-valid_from = sy-datum.
+    <ls_MATERIALTASKALLOCATION>-material = is_final-matnr.
+    <ls_MATERIALTASKALLOCATION>-material_long = is_final-matnr.
+    <ls_MATERIALTASKALLOCATION>-plant = is_final-werks.
+  ENDMETHOD.
+  METHOD get_OPERATION.
+
+    APPEND INITIAL LINE TO et_OPERATION ASSIGNING FIELD-SYMBOL(<ls_OPERATION>).
+
+    automap_bapi_fields(
+      EXPORTING
+        is_str            = is_final
+        is_structure_name = 'BAPI1191_OPR_C'                  " Name of a structure
+      IMPORTING
+        es_bapi_str       = <ls_OPERATION>
+    ).
+
+    <ls_OPERATION>-valid_from = sy-datum.
+    <ls_OPERATION>-plant = is_final-werks.
+*          <ls_OPERATION>-OPERATION_ID = '1'.
+  ENDMETHOD.
+
+
+  METHOD get_INSPCHARACTERISTIC.
+    APPEND INITIAL LINE TO et_INSPCHARACTERISTIC ASSIGNING FIELD-SYMBOL(<ls_INSPCHARACTERISTIC>).
+
+    automap_bapi_fields(
+      EXPORTING
+        is_str            = is_final
+        is_structure_name = 'BAPI1191_CHA_C'                  " Name of a structure
+      IMPORTING
+        es_bapi_str       = <ls_INSPCHARACTERISTIC>
+    ).
+
+    <ls_INSPCHARACTERISTIC>-valid_from = sy-datum.
+    <ls_INSPCHARACTERISTIC>-cha_master_import_modus = 'C'.
+    <ls_INSPCHARACTERISTIC>-pmstr_char = is_final-werks.
+  ENDMETHOD.
+
+  METHOD call_bapi.
+    DATA:
+         lv_mic_conc TYPE string,
+      ls_group        TYPE bapi1191_tsk_c-task_list_group,
+      ls_groupcounter TYPE bapi1191_tsk_c-group_counter,
+      lt_return       TYPE STANDARD TABLE OF bapiret2.
+
+    LOOP AT gt_final INTO DATA(lo_final_temp) GROUP BY
+      ( matnr = lo_final_temp-matnr werks = lo_final_temp-werks )
+        REFERENCE INTO DATA(lo_final_grp).
+
+      READ TABLE gt_final INTO DATA(ls_final_task) WITH KEY matnr = lo_final_grp->matnr werks = lo_final_grp->werks.
+
+      "Only 1 row will get appeneded
+      IF sy-subrc EQ 0.
+
+        get_task(
+          EXPORTING
+            is_final = ls_final_task
+          IMPORTING
+            et_task  = DATA(lt_task)
+        ).
+
+        get_materialtaskallocation(
+          EXPORTING
+            is_final                  = ls_final_task
+          IMPORTING
+            et_materialtaskallocation = DATA(lt_materialtaskallocation)
+        ).
+
+      ENDIF.
+
+      "We can expect multiple rows here.
+      DATA(lv_opp_done) = abap_false.
+
+      LOOP AT GROUP lo_final_grp INTO DATA(ls_final_grp).
+
+        "For now the req is to create only 1 time.
+        IF lv_opp_done EQ abap_false.
+          get_operation(
+            EXPORTING
+              is_final     = ls_final_grp
+            IMPORTING
+              et_operation = DATA(lt_operation)
+          ).
+        ENDIF.
+
+
+        get_inspcharacteristic(
+          EXPORTING
+            is_final              = ls_final_grp
+          IMPORTING
+            et_inspcharacteristic = DATA(lt_INSPCHARACTERISTIC)
+        ).
+
+        lv_opp_done = abap_true.
+        lv_mic_conc = lv_mic_conc && ';' && ls_final_grp-qmerknr.
+
+      ENDLOOP.
+      APPEND INITIAL LINE TO gt_alv ASSIGNING FIELD-SYMBOL(<ls_alv>).
+      <ls_alv>-message = ls_final_grp-qmerknr.
+      CLEAR lv_opp_done.
+
+
+
+      CALL FUNCTION 'BAPI_INSPECTIONPLAN_CREATE'
+        EXPORTING
+          testrun                = VALUE BAPIFLAG( bapiflag =  abap_true )
+        IMPORTING
+          group                  = ls_group
+          groupcounter           = ls_groupcounter
+        TABLES
+          task                   = lt_task
+          materialtaskallocation = lt_materialtaskallocation
+          operation              = lt_operation
+          inspcharacteristic     = lt_inspcharacteristic
+          return                 = lt_return.
+
+      CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+      READ TABLE lt_return INTO DATA(ls_return) INDEX 1.
+      IF sy-subrc eq 0.
+        me->handle_bapi_messages( EXPORTING is_return = ls_return is_alv = <ls_alv> ).
+      ENDIF.
+
+
+      CLEAR: ls_group,ls_groupcounter,ls_return,lv_mic_conc,lv_opp_done.
+      CLEAR: lt_task, lt_materialtaskallocation,lt_operation,lt_INSPCHARACTERISTIC,lt_return.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD convert_input_to_output.
+    LOOP AT gt_input INTO DATA(ls_input).
+
+      "For common conv.
+      APPEND INITIAL LINE TO gt_final ASSIGNING FIELD-SYMBOL(<ls_final>).
+      <ls_final> = CORRESPONDING #( ls_input ).
+
+      super->convert_input_to_output( CHANGING cs_str = <ls_final> ).
+
+      "Other conversions.
+    ENDLOOP.
+  ENDMETHOD.
+
+ENDCLASS.

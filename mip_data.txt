@@ -1,0 +1,29 @@
+
+TYPES:
+  BEGIN OF zt_final.
+    INCLUDE TYPE zstr_migr_insp_plan.
+TYPES END OF zt_final.
+
+TYPES: BEGIN OF zt_alv,
+         status  TYPE /bsn/cc_traffic_icon,
+         matnr   TYPE matnr,
+         message TYPE bapi_msg,
+       END OF zt_alv.
+
+"Table types
+TYPES:
+  zt_t_BAPI1191_TSK_C     TYPE TABLE OF bapi1191_tsk_c,
+  zt_t_BAPI1191_MTK_C     TYPE TABLE OF bapi1191_mtk_c,
+  zt_t_BAPI1191_OPR_C     TYPE TABLE OF bapi1191_opr_c,
+  zt_t_BAPI1191_REF_OPR_C TYPE TABLE OF bapi1191_ref_opr_c,
+  zt_t_BAPI1191_PRT_C     TYPE TABLE OF bapi1191_prt_c,
+  zt_t_BAPI1191_CHA_C     TYPE TABLE OF bapi1191_cha_c,
+  zt_t_BAPI1191_TXT_HDR_C TYPE TABLE OF bapi1191_txt_hdr_c,
+  zt_t_BAPI1012_TXT_C     TYPE TABLE OF bapi1012_txt_c,
+  zt_t_BAPIRET2           TYPE TABLE OF bapiret2,
+  zt_t_BAPI1191_CHV_C     TYPE TABLE OF bapi1191_chv_c.
+
+
+DATA: gt_input TYPE TABLE OF zt_final.
+DATA: gt_final TYPE TABLE OF zt_final.
+DATA: gt_alv TYPE TABLE OF zt_alv.
