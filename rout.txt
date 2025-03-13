@@ -1,0 +1,247 @@
+*&---------------------------------------------------------------------*
+*& Include          ZMM_MATERIAL_MIGRATION_CLS
+*&---------------------------------------------------------------------*
+CLASS lcl_INSPECTION_PLAN_CLS DEFINITION INHERITING FROM zcl_xx_migration.
+
+  PUBLIC SECTION.
+
+    INCLUDE zqm_inspection_plan_ROUT_dat.
+
+    METHODS:
+
+      execute,
+
+      convert_input_to_output REDEFINITION,
+
+      call_bapi REDEFINITION.
+
+  PRIVATE SECTION.
+
+    METHODS:
+
+      "Methods with internal tables.
+*      get_task IMPORTING is_final TYPE zt_final EXPORTING et_task TYPE zt_t_BAPI1191_TSK_C,
+
+      get_OPERATION IMPORTING is_final TYPE zt_final EXPORTING
+        et_OPERATION TYPE zt_t_bapi_es_task_maint_opr
+        et_OPERATION_X TYPE zt_t_bapi_es_task_maint_opr_x,
+
+      get_INSPCHARACTERISTIC IMPORTING is_final TYPE zt_final EXPORTING
+        et_INSPCHARACTERISTIC TYPE zt_t_bapi_es_task_maint_cha
+        et_INSPCHARACTERISTIC_X TYPE zt_t_bapi_es_task_maint_cha_x.
+
+
+ENDCLASS.
+CLASS lcl_INSPECTION_PLAN_CLS IMPLEMENTATION.
+  METHOD execute.
+
+    read_excel(
+      EXPORTING
+        iv_structure_name = 'ZSTR_MIGR_ROUTING'                 " Table Name
+        iv_filename       = p_file                  " Local file for upload/download
+      IMPORTING
+        ct_table          = gt_input
+    ).
+
+    convert_input_to_output( ).
+
+    IF gt_final IS NOT INITIAL.
+
+      me->call_bapi( ).
+
+    ENDIF.
+
+    IF gt_alv IS NOT INITIAL.
+      show_alv(
+        CHANGING
+          ct_table = gt_alv
+      ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD get_OPERATION.
+
+    APPEND INITIAL LINE TO et_OPERATION ASSIGNING FIELD-SYMBOL(<ls_OPERATION>).
+
+    automap_bapi_fields(
+      EXPORTING
+        is_str            = is_final
+        is_structure_name = 'CPS_TASK_LIST_MAINT_OPR'                  " Name of a structure
+      IMPORTING
+        es_bapi_str       = <ls_OPERATION>
+    ).
+
+    APPEND INITIAL LINE TO et_operation_x ASSIGNING FIELD-SYMBOL(<ls_OPERATION_x>).
+
+    fill_bapix_str(
+      EXPORTING
+        is_str   = <ls_operation>
+      IMPORTING
+        es_str_x = <ls_OPERATION_x>
+    ).
+  ENDMETHOD.
+
+
+  METHOD get_INSPCHARACTERISTIC.
+    APPEND INITIAL LINE TO et_INSPCHARACTERISTIC ASSIGNING FIELD-SYMBOL(<ls_INSPCHARACTERISTIC>).
+
+    automap_bapi_fields(
+      EXPORTING
+        is_str            = is_final
+        is_structure_name = 'CPS_TASK_LIST_MAINT_CHA'                  " Name of a structure
+      IMPORTING
+        es_bapi_str       = <ls_INSPCHARACTERISTIC>
+    ).
+
+    APPEND INITIAL LINE TO et_inspcharacteristic_x ASSIGNING FIELD-SYMBOL(<ls_INSPCHARACTERISTIC_x>).
+
+    fill_bapix_str(
+      EXPORTING
+        is_str   = <ls_INSPCHARACTERISTIC>
+      IMPORTING
+        es_str_x = <ls_INSPCHARACTERISTIC_x> ).
+
+
+  ENDMETHOD.
+
+  METHOD call_bapi.
+    DATA:
+      lv_mic_conc TYPE string,
+      lt_return   TYPE STANDARD TABLE OF bapiret2.
+
+    LOOP AT gt_final INTO DATA(lo_final_temp) GROUP BY
+      ( matnr = lo_final_temp-matnr werks = lo_final_temp-werks )
+        REFERENCE INTO DATA(lo_final_grp).
+
+
+      "We can expect multiple rows here.
+      DATA(lv_opp_done) = abap_false.
+
+      LOOP AT GROUP lo_final_grp INTO DATA(ls_final_grp).
+
+        "For now the req is to create only 1 time.
+        IF lv_opp_done EQ abap_false.
+          get_operation(
+            EXPORTING
+              is_final       = ls_final_grp
+            IMPORTING
+              et_operation   = DATA(lt_operation)
+              et_operation_x = DATA(lt_operation_x)
+          ).
+        ENDIF.
+
+
+        get_inspcharacteristic(
+          EXPORTING
+            is_final                = ls_final_grp
+          IMPORTING
+            et_inspcharacteristic   = DATA(lt_INSPCHARACTERISTIC)
+            et_inspcharacteristic_x = DATA(lt_INSPCHARACTERISTIC_x)
+        ).
+
+        lv_opp_done = abap_true.
+        lv_mic_conc = lv_mic_conc && ';' && ls_final_grp-qmerknr.
+
+      ENDLOOP.
+      APPEND INITIAL LINE TO gt_alv ASSIGNING FIELD-SYMBOL(<ls_alv>).
+      <ls_alv>-message = ls_final_grp-qmerknr.
+      CLEAR lv_opp_done.
+
+
+
+      "Call the BAPI
+      CALL FUNCTION 'ROUTING_MAINTAIN'
+        EXPORTING
+          task_list_group              = ls_final_grp-plnnr
+          key_date                     = sy-datum
+          group_counter                = ls_final_grp-plnal
+          plant                        = ls_final_grp-werks
+        TABLES
+          operations                   = lt_operation
+          operations_x                 = lt_operation_x
+          inspection_characteristics   = lt_INSPCHARACTERISTIC
+          inspection_characteristics_x = lt_INSPCHARACTERISTIC_x
+          return                       = lt_return.
+
+      IF cb_test EQ abap_true.
+        CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+      ELSE.
+        CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+          EXPORTING
+            wait = abap_true.                 " Use of Command `COMMIT AND WAIT`
+      ENDIF.
+
+      me->handle_bapi_messages(
+        CHANGING
+          ct_return = lt_return
+          cs_alv    = <ls_alv>
+      ).
+
+
+      CLEAR: lv_mic_conc,lv_opp_done.
+      CLEAR: lt_operation,lt_operation_x,lt_INSPCHARACTERISTIC,lt_INSPCHARACTERISTIC_x,lt_return.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD convert_input_to_output.
+    LOOP AT gt_input INTO DATA(ls_input).
+
+      "For common conv.
+      APPEND INITIAL LINE TO gt_final ASSIGNING FIELD-SYMBOL(<ls_final>).
+      <ls_final> = CORRESPONDING #( ls_input ).
+
+      super->convert_input_to_output( CHANGING cs_str = <ls_final> ).
+
+      "Other conversions.
+    ENDLOOP.
+  ENDMETHOD.
+
+ENDCLASS.
+
+*&---------------------------------------------------------------------*
+*& Include          ZQM_INSPECTION_PLAN_ROUT_DAT
+*&---------------------------------------------------------------------*
+TYPES:
+  BEGIN OF zt_final.
+    INCLUDE TYPE ZSTR_MIGR_ROUTING.
+TYPES END OF zt_final.
+
+TYPES: BEGIN OF zt_alv,
+         status  TYPE /bsn/cc_traffic_icon,
+         matnr   TYPE matnr,
+         message TYPE bapi_msg,
+       END OF zt_alv.
+
+"Table types
+TYPES:
+*  zt_t_BAPI1191_TSK_C     TYPE TABLE OF bapi1191_tsk_c,
+*  zt_t_BAPI1191_MTK_C     TYPE TABLE OF bapi1191_mtk_c,
+  ZT_T_BAPI_ES_TASK_MAINT_OPR     TYPE TABLE OF CPS_TASK_LIST_MAINT_OPR,
+  ZT_T_BAPI_ES_TASK_MAINT_OPR_X     TYPE TABLE OF CPS_TASK_LIST_MAINT_OPR_X,
+  ZT_T_BAPI_ES_TASK_MAINT_CHA     TYPE TABLE OF CPS_TASK_LIST_MAINT_CHA,
+  ZT_T_BAPI_ES_TASK_MAINT_CHA_X     TYPE TABLE OF CPS_TASK_LIST_MAINT_CHA_X,
+  zt_t_BAPIRET2           TYPE TABLE OF bapiret2.
+
+
+DATA: gt_input TYPE TABLE OF zt_final.
+DATA: gt_final TYPE TABLE OF zt_final.
+DATA: gt_alv TYPE TABLE OF zt_alv.
+
+
+PLNNR	1 Types	PLNNR
+PLNAL	1 Types	PLNAL
+WERKS	1 Types	WERKS_D
+MATNR	1 Types	MATNR
+VORNR	1 Types	VORNR
+STEUS	1 Types	STEUS
+LTXA1	1 Types	LTXA1
+CP_UMREN	1 Types	CP_UMREN
+CP_UMREZ	1 Types	CP_UMREZ
+BMSCH	1 Types	BMSCH
+VORME	1 Types	VORME
+VGWRT	1 Types	VGWRT
+VGWRTEH	1 Types	VGWRTEH
+QMERKNRP	1 Types	QMERKNRP
+QMERKNR	1 Types	QMERKNR
