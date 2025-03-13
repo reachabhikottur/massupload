@@ -1,0 +1,61 @@
+  METHOD handle_bapi_messages.
+    ASSIGN COMPONENT 'STATUS' OF STRUCTURE cs_alv TO FIELD-SYMBOL(<lv_alv_status>).
+
+    IF is_return IS SUPPLIED.
+
+
+      IF <lv_alv_status> IS ASSIGNED.
+
+        IF is_return-type EQ 'E' OR  is_return-type EQ 'A'.
+          <lv_alv_status> = icon_red_light.
+          ADD 1 TO gv_failed.
+        ELSE.
+          <lv_alv_status> = icon_green_light.
+        ENDIF.
+
+
+        ASSIGN COMPONENT 'MESSAGE' OF STRUCTURE is_alv TO FIELD-SYMBOL(<lv_alv_message>).
+        IF <lv_alv_message> IS ASSIGNED.
+          <lv_alv_message> = is_return-message.
+        ENDIF.
+
+
+      ENDIF.
+    ELSEIF ct_return IS SUPPLIED.
+      "Check for ABORT Message
+      SORT ct_return BY type id number.
+      DELETE ADJACENT DUPLICATES FROM ct_return COMPARING type id number.
+
+      "Read the first row to determine the BAPI Error or success
+      READ TABLE ct_return INTO DATA(ls_bapi_return) INDEX 1.
+      IF sy-subrc EQ 0.
+
+        ASSIGN COMPONENT 'MESSAGE' OF STRUCTURE is_alv TO <lv_alv_message>.
+        IF <lv_alv_message> IS ASSIGNED.
+
+
+          "In case of BAPI Error
+          IF ls_bapi_return-type = 'A' OR ls_bapi_return-type EQ 'E'.
+
+            "Get the Error message Text
+            LOOP AT ct_return INTO ls_bapi_return WHERE
+            type = 'E'.
+
+              "Append to export table to display error message in ALV
+              CONCATENATE <lv_alv_message> ls_bapi_return-message
+               INTO <lv_alv_message> SEPARATED BY ';'.
+
+              CLEAR ls_bapi_return.
+            ENDLOOP.
+            REPLACE FIRST OCCURRENCE OF ';' IN <lv_alv_message> WITH abap_false.
+
+            "Set traffic light as red
+            <lv_alv_status> = icon_red_light.
+
+            "Increment the failure total
+            ADD 1 TO gv_failed.
+          ENDIF.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.
