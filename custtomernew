@@ -1,0 +1,244 @@
+*&---------------------------------------------------------------------*
+*& Report ZCUSTOMER_MASTER_CREATE
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zcustomer_master_create.
+
+
+
+DATA : ls_central_data TYPE bapibus1006_central,
+       ls_person       TYPE bapibus1006_central_person,
+       ls_central_org  TYPE bapibus1006_central_organ,
+       lv_bupa_id      TYPE bu_partner,
+       ls_addr         TYPE bapibus1006_address,
+       lt_return       TYPE TABLE OF bapiret2,
+       lt_return_addr  TYPE TABLE OF bapiret2,
+       ls_role         TYPE bapibus1006_bproles.
+
+DATA : it_tab TYPE TABLE OF bapiret2.
+
+DATA:
+  centraldata	            TYPE TABLE OF	bapibus1006_central_td,
+  centraldataperson	      TYPE TABLE OF	bapibus1006_central_person_td,
+  centraldataorganization	TYPE TABLE OF	bapibus1006_central_organ_td,
+  centraldatagroup        TYPE TABLE OF bapibus1006_central_group_td,
+  return                  TYPE TABLE OF bapiret2.
+
+
+"Hardcoding the data
+ls_central_org-name1 = 'Abhi1'.
+ls_central_org-name2 = 'Abhi2'.
+ls_central_org-name3 = 'Abhi3'.
+*ls_central_org- = 'Abhi4'.
+
+ls_central_data-searchterm1 = 'searchterm1'.
+ls_central_data-title_key = '0003'.
+
+"Address data
+ls_addr-str_suppl1 = 'str_suppl1'.
+ls_addr-str_suppl2 = 'str_suppl1'.
+ls_addr-str_suppl3 = 'str_suppl1'.
+ls_addr-location = 'street 5'.
+ls_addr-district = 'street 5'.
+ls_addr-postl_cod1 = '571107'.
+ls_addr-city = 'city'.
+ls_addr-country = 'IN'.
+ls_addr-langu = 'EN'.
+ls_addr-street = 'Street'.
+
+"Telephone number
+DATA: lt_telephone TYPE TABLE OF bapiadtel.
+
+lt_telephone = VALUE #(
+( std_no = abap_true telephone = '9036' consnumber = '1' )
+( std_no = abap_true telephone = '9036848808' consnumber = '2' std_recip = abap_true r_3_user = '3' ) ).
+
+CALL FUNCTION 'BAPI_BUPA_CREATE_FROM_DATA'
+  EXPORTING
+*   BUSINESSPARTNEREXTERN   = 'VATBP'
+    partnercategory         = '2'
+    partnergroup            = 'Z002'
+    centraldata             = ls_central_data
+*   centraldataperson       = ls_person
+    centraldataorganization = ls_central_org
+    accept_error            = space
+    addressdata             = ls_addr
+  IMPORTING
+    businesspartner         = lv_bupa_id
+  TABLES
+    telefondata             = lt_telephone
+    return                  = lt_return.
+
+IF lv_bupa_id IS NOT INITIAL.
+
+  ls_role-partnerrole = 'FLCU00' .
+
+  CALL FUNCTION 'BAPI_BUPA_ROLE_ADD_2'
+    EXPORTING
+      businesspartner     = lv_bupa_id
+      businesspartnerrole = ls_role-partnerrole
+      validfromdate       = sy-datum
+      validuntildate      = '99991231'
+    TABLES
+      return              = it_tab.
+
+  IF it_tab IS INITIAL.
+
+
+
+    CALL FUNCTION 'BAPI_BUPA_TAX_ADD'
+      EXPORTING
+        businesspartner = lv_bupa_id
+        taxtype         = 'IN0'
+        taxnumber       = 'ABCDEFGHIJ'
+      TABLES
+        return          = it_tab.
+
+  ENDIF.
+
+*  IF it_tab IS INITIAL.
+*    CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+*      EXPORTING
+*        wait = 'X'.
+*  ENDIF.
+ENDIF.
+WRITE : lv_bupa_id.
+
+
+FORM call_bapi USING iv_bupa_id." TYPE businesspartner.
+
+  DATA: ls_knvp                   TYPE knvp.
+  DATA: ls_master_data           TYPE cmds_ei_main,
+        ls_master_data_correct   TYPE cmds_ei_main,
+        ls_message_correct       TYPE cvis_message,
+        ls_master_data_defective TYPE cmds_ei_main,
+        ls_message_defective     TYPE cvis_message.
+
+  DATA: lt_customers        TYPE cmds_ei_extern_t,
+
+        ls_customers_header TYPE    cmds_ei_header.
+
+
+  DATA: ls_central_data TYPE cmds_ei_central_data,
+        lt_tax_ind      TYPE cmds_ei_tax_ind_t,
+        ls_tax_ind_cmd  TYPE cmds_ei_cmd_tax_ind.
+
+  DATA: lt_final TYPE TABLE OF zspxx_cust_bus_ptr.
+
+  DATA(lo_automap) = new zspcacl_mass_migration( ).
+
+
+  cmd_ei_api=>initialize( ).
+  LOOP AT lt_final ASSIGNING FIELD-SYMBOL(<ls_final>).
+
+
+    APPEND INITIAL LINE TO lt_customers ASSIGNING FIELD-SYMBOL(<ls_customers>).
+
+    <ls_customers>-header-object_instance-kunnr = iv_bupa_id.
+    <ls_customers>-header-object_task = 'U'.
+
+          APPEND INITIAL LINE TO <ls_customers>-central_data-tax_ind-tax_ind
+      ASSIGNING FIELD-SYMBOL(<ls_tax_ind>).
+
+
+      <ls_tax_ind>-task = 'M'.
+      <ls_tax_ind>-data-taxkd = <ls_final>-taxkd.
+      <ls_tax_ind>-datax-taxkd = abap_true.
+
+    APPEND INITIAL LINE TO <ls_customers>-company_data-company
+    ASSIGNING FIELD-SYMBOL(<ls_company_code>).
+
+
+    <ls_company_code>-task = 'M'.
+    <ls_company_code>-data_key-bukrs = <ls_final>-bukrs.
+    <ls_company_code>-data-akont  = <ls_final>-akont.
+    <ls_company_code>-data-zuawa  = <ls_final>-zuawa .
+    <ls_company_code>-data-zterm  = <ls_final>-zterm.
+    <ls_company_code>-data-xzver  = <ls_final>-xzver .
+    <ls_company_code>-data-zwels  = <ls_final>-zwels .
+    <ls_company_code>-data-xausz  = <ls_final>-xausz .
+
+
+    <ls_company_code>-dunning-current_state = ''.
+
+    APPEND INITIAL LINE TO <ls_company_code>-dunning-dunning ASSIGNING FIELD-SYMBOL(<ls_dunning>).
+    <ls_dunning>-data-mahna = <ls_final>-mahna.
+
+    "Sales
+    APPEND INITIAL LINE TO <ls_customers>-sales_data-sales
+    ASSIGNING FIELD-SYMBOL(<ls_sales>).
+    <ls_sales>-task = 'M'.
+
+    <ls_sales>-data_key-vkorg = <ls_final>-vkorg.
+    <ls_sales>-data_key-vtweg = <ls_final>-vtweg.
+    <ls_sales>-data_key-spart = <ls_final>-spart.
+
+    <ls_sales>-data-bzirk = <ls_final>-bzirk.
+    <ls_sales>-data-kdgrp  = <ls_final>-kdgrp .
+    <ls_sales>-data-vkbur  = <ls_final>-vkbur .
+    <ls_sales>-data-vkgrp  = <ls_final>-vkgrp .
+    <ls_sales>-data-waers  = <ls_final>-waers .
+    <ls_sales>-data-konda  = <ls_final>-konda .
+    <ls_sales>-data-kalks   = <ls_final>-kalks  .
+    <ls_sales>-data-vsbed   = <ls_final>-vsbed  .
+    <ls_sales>-data-inco1   = <ls_final>-inco1  .
+    <ls_sales>-data-inco2_l   = <ls_final>-inco2_l  .
+    <ls_sales>-data-ktgrd   = <ls_final>-ktgrd  .
+    <ls_sales>-data-lprio   = <ls_final>-lprio  .
+*    <ls_sales>-data-taxkd    = <ls_final>-taxkd   .
+
+    APPEND INITIAL LINE TO <ls_sales>-functions-functions ASSIGNING FIELD-SYMBOL(<ls_functions>).
+    <ls_functions>-task = 'I'.
+
+    <ls_functions>-data_key-parvw = <ls_final>-parvw.
+    <ls_functions>-data_key-parza = '001'.
+
+    <ls_functions>-data-knref = <ls_final>-ktonr.
+
+     <ls_customers>-central_data-tax_ind-current_state = space.
+
+
+
+    "Assign all.
+    ls_master_data-customers = lt_customers.
+
+    cmd_ei_api=>lock( iv_kunnr = iv_bupa_id ).
+
+
+  ENDLOOP.
+
+
+  " Update Customer with CMD_EI_API
+  CALL METHOD cmd_ei_api=>maintain_bapi
+    EXPORTING
+*      iv_test_run              = cb_test
+      iv_collect_messages      = 'X'
+      is_master_data           = ls_master_data
+    IMPORTING
+      es_master_data_correct   = ls_master_data_correct
+      es_message_correct       = ls_message_correct
+      es_master_data_defective = ls_master_data_defective
+      es_message_defective     = ls_message_defective.
+
+  IF ls_master_data_correct IS NOT INITIAL." AND cb_test IS INITIAL.
+    COMMIT WORK.
+  ELSE.
+    ROLLBACK WORK.
+  ENDIF.
+
+  LOOP AT ls_master_data-customers ASSIGNING FIELD-SYMBOL(<ls_cust>).
+
+    DATA(lv_index) = sy-tabix.
+
+  ENDLOOP.
+
+*  PERFORM display_alv.
+
+ENDFORM.
+
+
+
+
+
+*BREAK-POINT.
